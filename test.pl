@@ -40,18 +40,24 @@ if (not $dbh) {
 		   . "for the test database.";
 
 } else {
-    plan tests => 24;
+    plan tests => 31;
     diag "Starting test suite. Run `perl Makefile.PL -s` to reconfigure "
        . "connection parameters for the test database.";
 }
 
 diag "Dropping tables if they exist";
-for (qw/DBIx_TR_TEMP_FKTABLE DBIx_TR_TEMP_FKTABLE1 DBIx_TR_TEMP_PKTABLE DBIx_TR_TEMP_PKTABLE1/) {
+for (qw/DBIx_TR_TEMP_FKTABLE 
+        DBIx_TR_TEMP_FKTABLE1 
+        DBIx_TR_TEMP_FKTABLE2 
+        DBIx_TR_TEMP_FKTABLE3 
+        DBIx_TR_TEMP_FKTABLE4 
+        DBIx_TR_TEMP_PKTABLE 
+        DBIx_TR_TEMP_PKTABLE1/) {
     $dbh->do( qq{
         IF EXISTS ( select 1 
                     from sysobjects 
                     where name = '$_' and uid = user_id('dbo')) 
-            DROP TABLE dbo.$_ 
+            DROP TABLE [dbo].[$_]
         }
     );
 }
@@ -87,10 +93,48 @@ $dbh->do($_) for (split /;/, <<"END_OF_SQL");
         pid2            int NOT NULL
     );
     
+    create table [dbo].[DBIx_TR_TEMP_FKTABLE2] (
+        id              int PRIMARY KEY
+    );
+    
     ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE1]
     ADD CONSTRAINT [fk_fktable1] FOREIGN KEY ([pid1],[pid2]) 
     REFERENCES [dbo].[DBIx_TR_TEMP_PKTABLE1] ([id1],[id2]);
 
+    ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE2]
+    ADD CONSTRAINT [fk_fktable2_casc_del] FOREIGN KEY ([id])
+    REFERENCES [dbo].[DBIx_TR_TEMP_PKTABLE] ([id])
+    ON DELETE CASCADE;
+    
+    ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE2]
+    ADD CONSTRAINT [fk_fktable2_casc_upd] FOREIGN KEY ([id])
+    REFERENCES [dbo].[DBIx_TR_TEMP_PKTABLE] ([id])
+    ON UPDATE CASCADE;
+
+    ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE2]
+    ADD CONSTRAINT [fk_fktable2_nfr] FOREIGN KEY ([id])
+    REFERENCES [dbo].[DBIx_TR_TEMP_PKTABLE] ([id])
+    NOT FOR REPLICATION;
+
+    create table [dbo].[DBIx_TR_TEMP_FKTABLE3] (
+        id              int PRIMARY KEY
+    );
+    
+    ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE3]
+    ADD CONSTRAINT [fk_fktable3_casc_del_nfr] FOREIGN KEY ([id])
+    REFERENCES [dbo].[DBIx_TR_TEMP_PKTABLE] ([id])
+    ON DELETE CASCADE NOT FOR REPLICATION;
+    
+    create table [dbo].[DBIx_TR_TEMP_FKTABLE4] (
+        id              int PRIMARY KEY
+    );
+    
+    ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE4]
+    ADD CONSTRAINT [fk_fktable4_casc_upd_nfr] FOREIGN KEY ([id])
+    REFERENCES [dbo].[DBIx_TR_TEMP_PKTABLE] ([id])
+    ON UPDATE CASCADE NOT FOR REPLICATION;
+    
+    
 END_OF_SQL
 
 ####################
@@ -130,24 +174,45 @@ ok ($refs->[0]->{sql_add} eq qq{ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE]\nADD CO
 ok ($refs->[0]->{sql_drop} eq qq{ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE] DROP CONSTRAINT [fk_fktable]}, 'SQL Drop');
 
 $refs = $tr->references('dbo.DBIX_TR_TEMP_FKTABLE1');
-ok ($refs->[0]->{table} eq 'DBIx_TR_TEMP_FKTABLE1', 'Table name 1');
-ok ($refs->[0]->{owner} eq 'dbo', 'Table owner 1');
-ok ("@{$refs->[0]->{cols}}" eq 'pid1 pid2', 'Columns 1'); 
-ok ($refs->[0]->{reftable} eq 'DBIx_TR_TEMP_PKTABLE1', 'Referenced table name 1');
-ok ($refs->[0]->{refowner} eq 'dbo', 'Referenced table owner 1');
-ok ("@{$refs->[0]->{refcols}}" eq 'id1 id2', 'Referenced table columns 1'); 
-ok ($refs->[0]->{sql_add} eq qq{ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE1]\nADD CONSTRAINT [fk_fktable1] FOREIGN KEY (\n\t[pid1],[pid2]\n)\nREFERENCES [dbo].[DBIx_TR_TEMP_PKTABLE1] (\n\t[id1],[id2]\n)}, 'SQL Add 1');
-ok ($refs->[0]->{sql_drop} eq qq{ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE1] DROP CONSTRAINT [fk_fktable1]}, 'SQL Drop 1');
+ok ($refs->[0]->{table} eq 'DBIx_TR_TEMP_FKTABLE1', 'Table name');
+ok ($refs->[0]->{owner} eq 'dbo', 'Table owner');
+ok ("@{$refs->[0]->{cols}}" eq 'pid1 pid2', 'Columns'); 
+ok ($refs->[0]->{reftable} eq 'DBIx_TR_TEMP_PKTABLE1', 'Referenced table name');
+ok ($refs->[0]->{refowner} eq 'dbo', 'Referenced table owner');
+ok ("@{$refs->[0]->{refcols}}" eq 'id1 id2', 'Referenced table columns'); 
+ok ($refs->[0]->{sql_add} eq qq{ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE1]\nADD CONSTRAINT [fk_fktable1] FOREIGN KEY (\n\t[pid1],[pid2]\n)\nREFERENCES [dbo].[DBIx_TR_TEMP_PKTABLE1] (\n\t[id1],[id2]\n)}, 'SQL Add');
+ok ($refs->[0]->{sql_drop} eq qq{ALTER TABLE [dbo].[DBIx_TR_TEMP_FKTABLE1] DROP CONSTRAINT [fk_fktable1]}, 'SQL Drop');
+ok ($refs->[0]->{constraint} eq 'fk_fktable1', 'Constraint name');
 
+$refs = $tr->references('dbo.DBIx_TR_TEMP_FKTABLE2');
+ok (@{$refs} == 3, 'Reference count');
+for (@{$refs}) {
+    my $sql = 'FAIL UNLESS WE ENCOUNTER AN EXPECTED FK';
+    if ($_->{constraint} eq 'fk_fktable2_casc_del') {
+        $sql = 'ON DELETE CASCADE';
+    } elsif ($_->{constraint} eq 'fk_fktable2_casc_upd') {
+        $sql = 'ON UPDATE CASCADE';
+    } elsif ($_->{constraint} eq 'fk_fktable2_nfr') {
+        $sql = 'NOT FOR REPLICATION';
+    }
+    ok ($_->{sql_add} =~ /$sql$/, $sql);
+}
+
+$refs = $tr->references('dbo.DBIx_TR_TEMP_FKTABLE3');
+ok ($refs->[0]->{sql_add} =~ /ON DELETE CASCADE NOT FOR REPLICATION$/, 'ON DELETE CASCADE NOT FOR REPLICATION');
+
+$refs = $tr->references('dbo.DBIx_TR_TEMP_FKTABLE4');
+ok ($refs->[0]->{sql_add} =~ /ON UPDATE CASCADE NOT FOR REPLICATION$/, 'ON UPDATE CASCADE NOT FOR REPLICATION');
 
 #############
 ## cleanup ##
 #############
 
 END {
-    if ($dbh and $dbh->{Active}) {
+exit;    if ($dbh and $dbh->{Active}) {
         diag "Dropping tables";
         $dbh->do($_) for (split /\s*;\s*/, <<'        END_OF_SQL');
+            drop table dbo.DBIx_TR_TEMP_FKTABLE2;
             drop table dbo.DBIx_TR_TEMP_FKTABLE1;
             drop table dbo.DBIx_TR_TEMP_FKTABLE;
             drop table dbo.DBIx_TR_TEMP_PKTABLE1;

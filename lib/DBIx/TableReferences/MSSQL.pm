@@ -6,7 +6,7 @@ use warnings;
 use Carp;
 use DBI;
 
-our ($VERSION) = '0.01';
+our ($VERSION) = '0.02';
 
 sub new {
     my ($class,$dbh) = @_;
@@ -58,10 +58,16 @@ sub _tablereferences {
             object_name(r.fkeyid)   as [fk_tablename], 
             user_name(ofk.uid)      as [fk_tableowner],
             object_name(r.rkeyid)   as [pk_tablename], 
-            user_name(opk.uid)      as [pk_tableowner] 
+            user_name(opk.uid)      as [pk_tableowner],
+            ObjectProperty(r.constid, 'CnstIsDeleteCascade') 
+                                    as [OnDeleteCascade],
+            ObjectProperty(r.constid, 'CnstIsUpdateCascade') 
+                                    as [OnUpdateCascade],
+            ObjectProperty(r.constid, 'CnstIsNotRepl') 
+                                    as [NotForReplication]
     };
     
-    $sql .= ",col_name(r.fkeyid,r.fkey$_) as [fkeycol$_]\n" for 1..16;
+    $sql .= ", col_name(r.fkeyid,r.fkey$_) as [fkeycol$_]\n" for 1..16;
 
     $sql .= ", col_name(r.rkeyid,r.rkey$_) as [pkeycol$_]\n" for 1..16;
 
@@ -80,8 +86,13 @@ sub _tablereferences {
     for my $ref (@{$dbh->selectall_arrayref($sql)}) {
 
         my ($constraint, $table, $owner, $reftable, $refowner) = @{$ref}[0..4];
-        my @cols    = grep {defined} @{$ref}[5..20];
-        my @refcols = grep {defined} @{$ref}[21..36];
+        
+        my $del_casc    = $ref->[5] ? ' ON DELETE CASCADE'   : '';
+        my $upd_casc    = $ref->[6] ? ' ON UPDATE CASCADE'   : '';
+        my $not_for_rep = $ref->[7] ? ' NOT FOR REPLICATION' : '';
+        
+        my @cols        = grep {defined} @{$ref}[8..23];
+        my @refcols     = grep {defined} @{$ref}[24..39];
         
         push @relationships, {
             constraint  => $constraint, # Constraint name
@@ -95,7 +106,8 @@ sub _tablereferences {
                         . "ADD CONSTRAINT [$constraint] FOREIGN KEY (\n\t" 
                         . join(',', map {"[$_]"} @cols) . "\n)\n"
                         . "REFERENCES [$refowner].[$reftable] (\n\t" 
-                        . join(',', map {"[$_]"} @refcols) . "\n)",
+                        . join(',', map {"[$_]"} @refcols) . "\n)"
+                        . $del_casc . $upd_casc . $not_for_rep ,
             sql_drop    => "ALTER TABLE [$owner].[$table] DROP CONSTRAINT [$constraint]"
 
         }    
@@ -185,7 +197,7 @@ C<tablerefs> is just a wrapper method that calls C<references> in list context.
 
     @tables = $tr->references('titles'); # list context
 
-Returns a list of table names exactly as though you had called C<$tr->tablerefs('titles')>.
+Returns a list of table names exactly as though you had called $tr->tablerefs('titles').
 
     $refs = $tr->references('titles'); # scalar context
 
