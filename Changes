@@ -1,0 +1,6 @@
+Revision history for Perl extension DBIx::TableReferences::MSSQL.
+
+0.01  Wed Jul 21 08:48:37 2004
+	- original version; created by h2xs 1.23 with options
+		-A -X -n DBIx::TableReferences::MSSQL
+
