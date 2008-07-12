@@ -4,7 +4,8 @@ use DBI;
 use Data::Dumper;
 
 unless (grep { /^ODBC$/ } DBI->available_drivers) {
-    die "DBIx::TableReferences::MSSQL requires ODBC";
+    print "DBIx::TableReferences::MSSQL requires ODBC";
+    exit 0; # die "DBIx::TableReferences::MSSQL requires ODBC";
 }
 
 use lib 'testconfig';
