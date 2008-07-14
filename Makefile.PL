@@ -1,4 +1,8 @@
 use strict;
+
+eval {require DBI;};
+print "DBIx::TableReferences::MSSQL requires DBI" and exit if $@;
+
 use ExtUtils::MakeMaker;
 use DBI;
 use Data::Dumper;
